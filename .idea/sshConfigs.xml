@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="10.0.109.33" id="9d75e45f-7577-4823-9150-31336eedb4db" keyPath="$USER_HOME$/.ssh/id_rsa" port="22" nameFormat="DESCRIPTIVE" username="root" />
+      <sshConfig authType="PASSWORD" id="ed7659dc-18cb-499f-a19c-c564a4c3f1dc" customName="pingcap" nameFormat="CUSTOM">
+        <option name="customName" value="pingcap" />
+      </sshConfig>
+    </configs>
+  </component>
+</project>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="bbab48a6-c763-4af4-82f4-32bb012cdfad" name="pingcap" url="http://10.0.109.33">
+        <fileTransfer rootFolder="/root" accessType="SFTP" host="10.0.109.33" port="22" sshConfigId="9d75e45f-7577-4823-9150-31336eedb4db" sshConfig="root@10.0.109.33:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="pingcap" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="pingcap">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/Users/mac/GolandProjects/zinx-connect" local="$PROJECT_DIR$/../zinx-connect" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
