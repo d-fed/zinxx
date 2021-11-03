@@ -13,7 +13,7 @@ import (
 )
 
 type Connection struct {
-	TcpServer ziface.IServer
+	TCPServer ziface.IServer
 	Conn *net.TCPConn		// current conn socket TCP
 	ConnID uint32 // Conn ID
 	isClosed bool //	Current Conn Status
@@ -29,7 +29,7 @@ type Connection struct {
 
 func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
 	c := &Connection{
-		TcpServer:  server,
+		TCPServer:  server,
 		Conn:       conn,
 		ConnID:     connID,
 		MsgHandler: msgHandler,
@@ -40,7 +40,7 @@ func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgH
 	}
 
 	// 将conn加入到ConnManager 中
-	c.TcpServer.GetConnMgr().Add(c)
+	c.TCPServer.GetConnMgr().Add(c)
 	// NewConnection
 
 	return c
@@ -109,18 +109,13 @@ func (c *Connection) StartReader() {
 			conn: c,
 			msg:  msg,
 		}
+
 		if utils.GlobalObject.WorkerPoolSize > 0 {
-			// has initialized Worker Pool, send message to Worker Pool to handle
+			// The work pool mechanism has been activated, and the message is handed over to the Worker for processing
 			c.MsgHandler.SendMsgToTaskQueue(&req)
 		} else {
-			// 从Router中，找到绑定的Conn对应的Router调用
-			// 根据绑定好的MsgID，找到对应的api业务 执行
-			// use Message
-			go c.MsgHandler.DoMsgHandler(&req)
+			go c.MsgHandler.DoMsgHandler(&req) // Execute the corresponding Handle method in the bound message and the corresponding processing method
 		}
-
-		// 根据绑定好的MsgID，找到对应处理api业务，执行
-		go c.MsgHandler.DoMsgHandler(&req)
 
 		////// Registe Router
 		////// router which implement register
@@ -191,9 +186,8 @@ func (c *Connection) Start() {
 	fmt.Print("Conn Start() ... ConnID = ", c.ConnID)
 	// start READ data tasks from current conn
 	go c.StartReader()
-
-	//TODO: 启动从当前连接的写数据的业务
 	go c.StartWriter()
+	c.TCPServer.CallOnConnStart(c)
 
 }
 
@@ -205,7 +199,7 @@ func (c *Connection) Stop() {
 	c.isClosed = true
 	c.Conn.Close()                     // close socket
 	c.ExitChan <- true                 //close Writer Goroutine
-	c.TcpServer.GetConnMgr().Remove(c) // remove from current ConnMgr
+	c.TCPServer.GetConnMgr().Remove(c) // remove from current ConnMgr
 	//Exit channel and recycle resources
 	close(c.ExitChan)
 	close(c.msgChan)

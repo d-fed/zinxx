@@ -20,8 +20,7 @@ type IConnection interface {
 	RemoteAddr() net.Addr
 
 	// send data to remote server
-	SendMsg(msgID uint32, data []byte) error 		//直接将Message数据发送数据给远程的TCP客户端(无缓冲)
-	// send data to r
+	SendMsg(msgID uint32, data []byte) error 		//send Msg to remote TCP client 【non-buffer】
 }
 
 // define a method to handle the linked task

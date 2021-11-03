@@ -9,9 +9,7 @@ import (
 	"net"
 )
 
-// 在server listen之前添加
-// 在处理完拆包
-
+// 在server listen
 type Server struct {
 	Name string
 	IPVersion string // tcp or others
@@ -160,6 +158,25 @@ func (s *Server) AddRouter(msgID uint32, router ziface.IRouter) {
 func (s *Server) GetConnMgr() ziface.IConnManager {
 	return s.ConnMgr
 }
+
+// Hook Start & Stop
+func (s *Server) CallOnConnStart(conn ziface.IConnection) {
+	if s.OnConnStart != nil {
+		fmt.Println("---> CallOnConnStart....")
+		s.OnConnStart(conn)
+	}
+}
+func (s *Server) CallOnConnStop(conn ziface.IConnection){
+	if s.OnConnStop != nil {
+		fmt.Println("--->CallOnConnStop....")
+		s.OnConnStop(conn)
+	}
+}
+
+//func (s *Server) Packet() ziface.Packet{
+//	return s.packet
+//}
+
 
 /*
 	Initialize Server Module Methods / Handler

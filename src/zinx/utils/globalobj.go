@@ -16,7 +16,7 @@ type GlobalObj struct {
 	/*
 		Server
 	*/
-	TcpServer ziface.IServer // current Zinx global Server object
+	TCPServer ziface.IServer // current Zinx global Server object
 	Host      string         // current server listening IP
 	TcpPort   int            // current server listening port
 	Name      string         // current server name
