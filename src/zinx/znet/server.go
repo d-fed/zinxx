@@ -1,6 +1,6 @@
 package znet
 
-// replace Router property into MsgHandler Property
+// replace Router property into msgHandler Property
 import (
 	"awesomeProject/src/zinx/utils"
 	"awesomeProject/src/zinx/ziface"
@@ -9,30 +9,19 @@ import (
 	"net"
 )
 
-
 // 在server listen之前添加
 // 在处理完拆包
 
-
-
-//iServer 的接口实现，定义一个Server的服务器module
 type Server struct {
-	//name
 	Name string
-	//ip version
-	IPVersion string
-	//IP listen to
+	IPVersion string // tcp or others
 	IP string
-	//port listen to
 	Port int
-
-	// current server Message management Module, bind MsgID and corresponding Tasks API
-	MsgHandler ziface.IMsgHandle
-
-	// add router to current Server
-	//Router ziface.IRouter
-	// change Router into Message Handler
-
+	msgHandler ziface.IMsgHandle 	// current server Message management Module, bind MsgID and corresponding Tasks API
+	//Router ziface.IRouter	// add router to current Server		// change Router into Message Handler
+	ConnMgr ziface.IConnManager					// ConnMgr in current Server
+	OnConnStart func(conn ziface.IConnection)	// Hook to start conn
+	OnConnStop	func(conn ziface.IConnection)	// Hook to stop conn
 }
 
 // define current client connected handleAPI (this handle is fixed TODO: will let client to define handleAPI)
@@ -49,57 +38,54 @@ type Server struct {
 //}
 
 func (s *Server) Start() {
-	fmt.Printf("[Zinx] Server Name : %s, listenner at IP: %s, Port:%d is starting", utils.GlobalObject.Name, utils.GlobalObject.Host, utils.GlobalObject.TcpPort)
-	fmt.Print("[Zinx] Version %是， MaxConn: %d, MaxPackeetSize:%d\n",
-		utils.GlobalObject.Version,
-		utils.GlobalObject.MaxConn,
-		utils.GlobalObject.MaxPackageSize,
-	)
+	//fmt.Printf("[Zinx] Server Name : %s, listener at IP: %s, Port:%d is starting", utils.GlobalObject.Name, utils.GlobalObject.Host, utils.GlobalObject.TcpPort)
+	//fmt.Print("[Zinx] Version %是， MaxConn: %d, MaxPackeetSize:%d\n",
+	//	utils.GlobalObject.Version,
+	//	utils.GlobalObject.MaxConn,
+	//	utils.GlobalObject.MaxPacketSize,
+	//)
 
-	fmt.Printf("[Start] Server Listenner at IP: %s, Port %d, is starting\n", s.IP, s.Port,
-		utils.GlobalObject.Name, utils.GlobalObject.Host, utils.GlobalObject.TcpPort)
-	fmt.Printf("[Zinx] Version %s, MaxConn:%d, MaxPackeetSize:%d\n",
-		utils.GlobalObject.Version,
-		utils.GlobalObject.MaxConn,
-		utils.GlobalObject.MaxPackageSize)
+	//fmt.Printf("[Start] Server Listenner at IP: %s, Port %d, is starting\n", s.IP, s.Port,
+	//	utils.GlobalObject.Name, utils.GlobalObject.Host, utils.GlobalObject.TcpPort)
+	//fmt.Printf("[Zinx] Version %s, MaxConn:%d, MaxPackeetSize:%d\n",
+	//	utils.GlobalObject.Version,
+	//	utils.GlobalObject.MaxConn,
+	//	utils.GlobalObject.MaxPacketSize)
 	// read from Client-side
+
+
+	fmt.Printf("[START] Server name: %s,listener at IP: %s, Port %d is starting\n", s.Name, s.IP, s.Port)
 	go func() {
-		// 0. 开启消息队列，以及Worker工作池
 		// 0. start Message Queue, Worker Pool
-		s.MsgHandler.StartWorkerPool()
-
-
-		// 1. obtain 1 TCP Addr
-		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
+		s.msgHandler.StartWorkerPool()
+		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))			// 1. obtain 1 TCP Addr
 		if err != nil {
-			fmt.Println("resolve tcp addt error: ", err)
+			fmt.Println("resolve tcp address error: ", err)
 			return
 		}
-		// Success obtain the   addr
-
-		// 2. [obtain listenner from addr] monitor server address
-		listenner, err := net.ListenTCP(s.IPVersion, addr)
+		listener, err := net.ListenTCP(s.IPVersion, addr)			// 2. listener to monitor address
 		if err != nil {
-			fmt.Println("listen ", s.IPVersion, " err ", err)
-			return
+			panic(err)
 		}
+		fmt.Println("start Zinx server succ, ", s.Name, " succ, Listenning... ") // successfully listenning to address
 
-		fmt.Println("start Zinx server succ, ", s.Name, " succ, Listenning... ")
+		//TODO: generate ConnID automatically
 		var cid uint32
 		cid = 0
 
 		// 3. block connection from waited client, and handle the client-connection tasks (Read & Write)
+		// StartServer
 		for {
-			// return conn once receive from client
-			conn, err := listenner.AcceptTCP()
+			conn, err := listener.AcceptTCP() 	// 3.1 AcceptTCP get remote addr
 			if err != nil {
 				fmt.Println("Accept err", err)
 				continue
 			}
+			fmt.Println("Get conn remote addr = ", conn.RemoteAddr().String())
 
-			// 在Server中建立New Connection
-			// bind conn and latest conn tasks to generate conn module
-			dealConn := NewConnection(conn, cid, s.MsgHandler)
+
+			// 3,2 Set server MaxConn, if execeed, close and start new conn
+			dealConn := NewConnection(s, conn, cid, s.msgHandler)
 			cid++
 
 			// start current conn task
@@ -108,6 +94,8 @@ func (s *Server) Start() {
 			// clients have established connections, do max 512 echo
 			// ↓  will be handle by connection module
 			go func() {
+				// 0. Start Worker Pool
+				s.msgHandler.StartWorkerPool()
 				for {
 					buf := make([]byte, 512)
 					cnt, err := conn.Read(buf)
@@ -116,7 +104,22 @@ func (s *Server) Start() {
 						continue
 					}
 
+					// 设置最大连接个数的按断，如果超过个数
+					if s.ConnMgr.Len() >= utils.GlobalObject.MaxConn {
+						//TODO 给客户端相应的一个错误超出最大链接的错误包
+						conn.Close()
+						continue
+					}
 					fmt.Printf("r ecv client buf %s, cnt %d\n", buf, cnt)
+					// connMger加入Server模块，给Server添加一个ConnMgr属性
+					// 添加NewServer方法，加入ConnMgr初始化
+
+					// 3.3 handle new conn,，此时应该有handler和Conn绑定
+					dealConn := NewConnection(s, conn, cid, s.msgHandler)
+					cid++
+
+					// 3.4 启动当前的链接业务处理
+					go dealConn.Start()
 
 					// echo data
 					if _, err := conn.Write(buf[:cnt]); err != nil {
@@ -130,10 +133,12 @@ func (s *Server) Start() {
 
 }
 
+//Stop 停止服务
 func (s *Server) Stop() {
-	//TODO: open resources, status， stop and recycle
-	// connection info to pause or recycle
+	fmt.Println("[STOP] Zinx server , name ", s.Name)
 
+	//
+	s.ConnMgr.ClearConn()
 }
 
 func (s *Server) Serve() {
@@ -148,26 +153,28 @@ func (s *Server) Serve() {
 // 添加路由方法
 // 给当前服务注册一个路由业务方法，供客户端连接处理使用
 func (s *Server) AddRouter(msgID uint32, router ziface.IRouter) {
-	s.MsgHandler.AddRouter(msgID, router)
+	s.msgHandler.AddRouter(msgID, router)
 	fmt.Println("Add Router Succ!!")
 }
 
-/*
-	Initialize Server Module Methods
-*/
+func (s *Server) GetConnMgr() ziface.IConnManager {
+	return s.ConnMgr
+}
 
-func NewServer(name string) ziface.IServer {
+/*
+	Initialize Server Module Methods / Handler
+*/
+func NewServer() ziface.IServer {
+	utils.GlobalObject.Reload()
+
 	s := &Server{
-		//Name :name,
-		//IPVersion: "tcp4",
-		//IP: "0.0.0.0",
-		//Port:8998,
-		//Router: nil,
 		Name:       utils.GlobalObject.Name,
 		IPVersion:  "tcp4",
 		IP:         utils.GlobalObject.Host,
 		Port:       utils.GlobalObject.TcpPort,
-		MsgHandler: NewMsgHandle(),
+		msgHandler: NewMsgHandle(),
+		ConnMgr:    NewConnManager(),
 	}
 	return s
 }
+

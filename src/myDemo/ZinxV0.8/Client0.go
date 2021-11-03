@@ -12,7 +12,6 @@ import (
 	stimulate client
 */
 
-
 /*
 
 10W client请求的数量。
@@ -29,15 +28,12 @@ import (
 -> There only need 10 goroutine switches
 
 10W处理客户端业务
- */
+*/
 func main() {
-	fmt.Println("client start...")
-
 	time.Sleep(1 * time.Second)
-	// 1. connect remote server, generate conn
-	conn, err := net.Dial("tcp", "127.0.0.1:8999")
+	conn, err := net.Dial("tcp", "127.0.0.1:8999") // 1. connect remote server, generate conn
 	if err != nil {
-		fmt.Println(  "client start err, exit!", err)
+		fmt.Println("client start err, exit!", err)
 		return
 	}
 
@@ -45,54 +41,38 @@ func main() {
 		/*
 			send packed message
 			MsgID = 0
-		 */
+		*/
 		dp := znet.NewDataPack()
 		// convert message to TVL format
-		binaryMsg, err := dp.Pack(znet.NewMsgPackage(0,[]byte("ZinxV0.7 client Test Message 0000")))
-		if err != nil{
+		binaryMsg, err := dp.Pack(znet.NewMsgPackage(0, []byte("ZinxV0.8 client Test Message 0000")))
+		if err != nil {
 			fmt.Println("Pack error:", err)
 			return
 		}
-
-
-		// err 的作用域位于if 中，不在上一个TLV的binaryMsg中
-		if _, err := conn.Write(binaryMsg); err != nil{
+		if _, err := conn.Write(binaryMsg); err != nil { 		// err 的作用域位于if 中，不在上一个TLV的binaryMsg中
 			fmt.Println("write error:", err)
 			return
 		}
-
-		// Server need to return Message; MsgID=1: pingpingping
-
-
-		// perform sticky
-		// 1. Read head from stream to retrieve ID and dataLen
-		binaryHead := make([]byte, dp.GetHeadLen())
-		if _, err := io.ReadFull(conn, binaryHead); err != nil{
+		binaryHead := make([]byte, dp.GetHeadLen()) 	// 1. Read head from stream
+		if _, err := io.ReadFull(conn, binaryHead); err != nil { //ReadFull, fill msg
 			fmt.Println("read head error", err)
 			break
 		}
-
-
-		// put binary head unpack into msg struct
-
-
-
-		// 2. binaryHead  --> msgHead
- 		//  再根据DataLen 进行第二次读取，将data读出来 Large msg data
-		msgHead, err := dp.Unpack(binaryHead)
-		if err != nil{
-			fmt.Println("client unpack msgHead error", err)
-			break
+		msgHead, err := dp.Unpack(binaryHead) 		// put binary head unpack into msg struct=
+		if err != nil {
+			//fmt.Println("client unpack msgHead error", err)
+			fmt.Println("server unpack msgHead error", err)
+			return
 		}
 
 		// msg具有数据
-		if msgHead.GetMsgLen() > 0{ // msg contains data indeed
+		if msgHead.GetMsgLen() > 0 { // msg contains data indeed
 			//2. read from DataLen
 			// 根据DataLen做第二次数据读取
 			msg := msgHead.(*znet.Message) // Type Conversion msgHead --> msg
 			msg.Data = make([]byte, msg.GetMsgLen())
 
-			if _, err := io.ReadFull(conn, msg.Data); err != nil{
+			if _, err := io.ReadFull(conn, msg.Data); err != nil {
 				fmt.Println("read msg data error, ", err)
 				return
 			}

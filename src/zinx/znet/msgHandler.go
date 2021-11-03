@@ -42,7 +42,7 @@ func NewMsgHandle() *MsgHandle {
 	msg ziface.IMessage
 */
 
-// 索引 / 调度 / 执行对应Router消息的处理方法
+// non-bl
 func (mh *MsgHandle) DoMsgHandler(request ziface.IRequest) {
 	// 1. find msgID from Request
 	handler, ok := mh.Apis[request.GetMsgID()]
@@ -72,18 +72,14 @@ func (mh *MsgHandle) AddRouter(msgID uint32, router ziface.IRouter) {
 // 启动一个Worker工作流程
 func (mh *MsgHandle) StartOneWorker(workerID int, taskQueue chan ziface.IRequest) {
 	fmt.Println("Worker ID = ", workerID, " is started .... ")
-
-	// 不断的阻塞等待对应消息
-	for {
+	for {		// 不断的阻塞等待对应消息
 		select {
 		// taskQueue过来， call DoMsgHandle
 		case request := <-taskQueue:
 			mh.DoMsgHandler(request)
 			// 保证每一个Worker收到的Request任务是均衡的
 		}
-	}
-
-	// 每一个Worker利用Go Func
+	} 		// 每一个Worker利用Go Func
 }
 
 // 将消息平均分配给不同的Worker
@@ -91,15 +87,11 @@ func (mh *MsgHandle) StartOneWorker(workerID int, taskQueue chan ziface.IRequest
 // 根据IP的地域进行分配，按照轮询分配
 func (mh *MsgHandle) SendMsgToTaskQueue(request ziface.IRequest) {
 	// 1. 将消息平均分配给不同的Worker  	// 根据客户端建立的ConnID来分配  	// 基本的平均分配的轮询法则
-
-	// 得到需要处理此条连接的workerID
-	workerID := request.GetConnection().GetConnID() % mh.WorkerPoolSize
-	// 当前需要工作的ID数量
+	workerID := request.GetConnection().GetConnID() % mh.WorkerPoolSize	// 得到需要处理此条连接的workerID
 	fmt.Println("Add ConnID = ", request.GetConnection().GetConnID(), " request MsgID = ",
 		request.GetMsgID(),
-		" to WorkerID = ", workerID)
-	// 将请求消息发给任务队列
-	mh.TaskQueue[workerID] <- request
+		" to WorkerID = ", workerID)	// 当前需要工作的ID数量
+	mh.TaskQueue[workerID] <- request		// 将请求消息发给任务队列
 
 	// 将消息队列Queue集成到Zinx框架中
 	// 2. 将消息发送给对应的Worker的TaskQueue

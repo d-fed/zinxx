@@ -13,42 +13,35 @@ import (
 )
 
 type Connection struct {
-	// current conn socket TCP
-	Conn *net.TCPConn
-
-	// Conn ID
-	ConnID uint32
-
-	// Current Conn Status
-	isClosed bool
-
-	// Current conn bi nding tasks method
-	handleAPI ziface.HandleFunc
-
-	// info current conn has exit or paused channel
-	ExitChan chan bool //退出消息
-
-	// 无缓冲id管道，用于读，写Goroutine之间的消息
-	msgChan chan [] byte // 业务消息
+	TcpServer ziface.IServer
+	Conn *net.TCPConn		// current conn socket TCP
+	ConnID uint32 // Conn ID
+	isClosed bool //	Current Conn Status
+	//handleAPI ziface.HandleFunc
+	ExitChan chan bool  		// info current conn has exit or paused channel
+	//RW between Goroutine
+	msgChan  chan []byte // non-buffer Task channel
+	msgBuffChan  chan []byte // Buffer Task channel
 
 	// 消息的管理MsgID 和 对应的处理业务API关系
 	MsgHandler ziface.IMsgHandle
-
-
-	// call Router in StartReader
 }
 
-//conn, id, router
-// initialize conn module
-func NewConnection(conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
+func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
 	c := &Connection{
-		Conn:     conn,
-		ConnID:   connID,
-		MsgHandler:   msgHandler,
-		isClosed: false,
-		msgChan: make(chan []byte),
-		ExitChan: make(chan bool, 1),
+		TcpServer:  server,
+		Conn:       conn,
+		ConnID:     connID,
+		MsgHandler: msgHandler,
+		isClosed:   false,
+		msgChan:    make(chan []byte),
+		ExitChan:   make(chan bool, 1),
+		//msgBuffChan:make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
 	}
+
+	// 将conn加入到ConnManager 中
+	c.TcpServer.GetConnMgr().Add(c)
+	// NewConnection
 
 	return c
 }
@@ -60,12 +53,11 @@ func (c *Connection) StartReader() {
 	// if any break triggered
 	defer c.Stop() // 资源回收
 
-
 	// 1. Read Client Data 2. Call HandleAPI
 	for {
 
 		// read Client data into buf, max 512 byte
-		//buf := make([]byte, utils.GlobalObject.MaxPackageSize) // buf is from client-side
+		//buf := make([]byte, utils.GlobalObject.MaxPacketSize) // buf is from client-side
 		////cnt, err := c.Conn.Read(buf)
 		//_, err := c.Conn.Read(buf)
 		//if err != nil {
@@ -112,24 +104,20 @@ func (c *Connection) StartReader() {
 			}
 		}
 		msg.SetData(data)
-
 		// and put inside msg.Data
 		req := Request{
 			conn: c,
 			msg:  msg,
 		}
-		// 做一个判断，判断是是否有已经开启Worker
-
-		if utils.GlobalObject.WorkerPoolSize > 0{
+		if utils.GlobalObject.WorkerPoolSize > 0 {
 			// has initialized Worker Pool, send message to Worker Pool to handle
 			c.MsgHandler.SendMsgToTaskQueue(&req)
-		}else{
+		} else {
 			// 从Router中，找到绑定的Conn对应的Router调用
 			// 根据绑定好的MsgID，找到对应的api业务 执行
+			// use Message
 			go c.MsgHandler.DoMsgHandler(&req)
 		}
-
-
 
 		// 根据绑定好的MsgID，找到对应处理api业务，执行
 		go c.MsgHandler.DoMsgHandler(&req)
@@ -162,36 +150,30 @@ func (c *Connection) StartReader() {
 
 }
 
-
-
 /*
  	write message Goroutine, Users send Message
 	dedicated to send message to client
 
- */
-
+*/
 
 /*
 	dedicated module which send message to client-side
 	write Message function
- */
+*/
 
-
-func (c *Connection) StartWriter(){
+func (c *Connection) StartWriter() {
 	fmt.Print("[Writer Goroutine is running...]")
 	defer fmt.Println(c.RemoteAddr().String(), " [conn Writer exit!]")
 
-
 	// 不断阻塞的等待Channel的消息，进行写给客户端
-	for{
-		select{
+	for {
+		select {
 		case data := <-c.msgChan:
-		// 有数据要写给客户端
-		if _,err := c.Conn.Write(data); err != nil{
-			fmt.Println("Send data error, ", err)
-			return
-		}
-
+			// 有数据要写给客户端
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("Send data error, ", err)
+				return
+			}
 
 		case <-c.ExitChan: //可读
 			// 代表Reader已经退出，此时Writer也已经退出
@@ -202,9 +184,7 @@ func (c *Connection) StartWriter(){
 
 	// 告知当前链接已退出，Writer退出
 
-
 }
-
 
 // start conn, let current conn ready to work
 func (c *Connection) Start() {
@@ -218,19 +198,14 @@ func (c *Connection) Start() {
 }
 
 func (c *Connection) Stop() {
-	fmt.Println("Conn Stop() .. ConnID =", c.ConnID)
-
-	// if close
+	fmt.Println("Conn Stop() .. ConnID = ", c.ConnID)
 	if c.isClosed == true {
 		return
 	}
 	c.isClosed = true
-	// close socket
-	c.Conn.Close()
-
-	//告知Writer关闭，退出
-	c.ExitChan <- true
-
+	c.Conn.Close()                     // close socket
+	c.ExitChan <- true                 //close Writer Goroutine
+	c.TcpServer.GetConnMgr().Remove(c) // remove from current ConnMgr
 	//Exit channel and recycle resources
 	close(c.ExitChan)
 	close(c.msgChan)

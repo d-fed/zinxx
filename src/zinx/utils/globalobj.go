@@ -24,18 +24,18 @@ type GlobalObj struct {
 	/*
 		Zinx
 	*/
-	Version        string //current Zinx version
+	Version        string 
 	MaxConn        int    // Max allowed server connection
-	MaxPackageSize uint32 // Max value of Zinx data package
-
-
+	MaxPacketSize uint32 // Max value of Zinx data packet
 	WorkerPoolSize uint32	// current worker pool number of tasks
 	// 当前业务工作Worker Pool的 Goroutine 的数量
-
-	MaxWorkerTaskLen uint32	// Zinx框架允许用户最大开辟多少个Worker（限定条件）
+	MaxWorkerTaskLen uint32	// The max task storage  of the corresponding task responsibilities of the staff
 	// MaxWorkerTaskLen，允许用户最多开辟多少个Worker（限定条件下）
-
-
+	//MaxMsgChanLen
+	/*
+		config file path
+	*/
+	ConfFilePath string
 }
 
 /*
@@ -54,7 +54,7 @@ func init() {
 		TcpPort:        8999,
 		Host:           "0.0.0.0",
 		MaxConn:        1000,
-		MaxPackageSize: 4096,
+		MaxPacketSize: 4096,
 	}
 
 	//
@@ -84,7 +84,7 @@ func init() {
 		TcpPort:        8999,
 		Host:           "0.0.0.0",
 		MaxConn:        1000,
-		MaxPackageSize: 4096,
+		MaxPacketSize: 4096,
 		WorkerPoolSize: 10,
 		MaxWorkerTaskLen: 1024, // max len
 	}
