@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 )
 
 type Connection struct {
@@ -25,6 +26,13 @@ type Connection struct {
 
 	// 消息的管理MsgID 和 对应的处理业务API关系
 	MsgHandler ziface.IMsgHandle
+
+	//conn property collection
+	property map[string]interface{}
+
+
+	//READWRITE protect conn
+	propertyLock sync.RWMutex
 }
 
 func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
@@ -36,13 +44,13 @@ func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgH
 		isClosed:   false,
 		msgChan:    make(chan []byte),
 		ExitChan:   make(chan bool, 1),
+		property: nil,
 		//msgBuffChan:make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
 	}
 
-	// 将conn加入到ConnManager 中
+	// add Conn into  ConnMgr
 	c.TCPServer.GetConnMgr().Add(c)
 	// NewConnection
-
 	return c
 }
 
@@ -249,6 +257,38 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		fmt.Println("Write msg id ", msgId, " error :", err)
 		return errors.New("conn Write error")
 	}
-
 	return nil
+}
+
+
+func (c *Connection) SetProperty(key string, value interface{}){
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	// add a conn
+	c.property[key] = value
+}
+
+
+func (c *Connection) GetProperty(key string)(interface{}, error){
+	c.propertyLock.RLock()
+	defer c.propertyLock.RLock()
+
+	// read property
+	if value, ok := c.property[key]; ok{
+		return value,nil
+	}else{
+		return nil, errors.New("no property found")
+	}
+}
+
+
+
+func (c *Connection) RemoveProperty(key string)(){
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	// delete property
+	delete(c.property, key)
+
 }

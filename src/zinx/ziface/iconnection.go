@@ -21,6 +21,12 @@ type IConnection interface {
 
 	// send data to remote server
 	SendMsg(msgID uint32, data []byte) error 		//send Msg to remote TCP client 【non-buffer】
+
+	// set, obtain, remove conn property
+	SetProperty(key string, value interface{})		// set conn property
+	GetProperty(key string) (interface{}, error)	// obtain conn property
+	RemoveProperty(key string)						// remove conn property
+
 }
 
 // define a method to handle the linked task
