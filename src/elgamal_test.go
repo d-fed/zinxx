@@ -27,10 +27,22 @@ func fromHex(hex string) *big.Int {
 	return n
 }
 
-
-func TestEncryptDecrypt(t *testing.T) {
+func generateNewKeyPairs() PublicKey {
 	gHex, _ := randomHex(42)
 	pHex, _ := randomHex(42)
+	return PublicKey{
+		G: fromHex(gHex),
+		P: fromHex(pHex),
+	}
+}
+
+
+
+
+func TestEncryptDecrypt(t *testing.T) {
+	//gHex, _ := randomHex(42)
+	//pHex, _ := randomHex(42)
+	generateNewKeyPairs()
 	priv := &PrivateKey{
 		PublicKey: PublicKey{
 			G: fromHex(gHex),
