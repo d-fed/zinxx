@@ -39,15 +39,35 @@ func (this *HelloZinxRouter) Handle(request ziface.IRequest) {
 	}
 }
 
+//  execute Hook after create conn,
+func DOConnectionBegin(conn ziface.IConnection){
+	fmt.Println("==> DoConnectionBegin is Called ... ")
+	if err := conn.SendMsg(202, []byte("DoConnection BEGIN")); err != nil{
+		fmt.Println(err)
+	}
+}
+
+// execute after disconnect
+func DoConnectionLost(conn ziface.IConnection){
+	fmt.Println("==> DOConnectionLost is Called...")
+	fmt.Println("conn ID = ", conn.GetConnID(), " is Lost... " )
+}
+
+
 
 
 
 
 func main() {
 	//1. create server handler, use Zinx Api
-	s := znet.NewServer("[zinxv0.6]")
 
+	s := znet.NewServer()
 
+	// 2. Register Conn Hook
+	s.SetOnConnStart(DOConnectionBegin)
+	s.SetOnConnStop(DoConnectionLost)
+
+	// 3. Add custmoized Router
 	s.AddRouter(0, &PingRouter{})
 	s.AddRouter(1, &HelloZinxRouter{})
 

@@ -108,10 +108,11 @@ func (s *Server) GetConnMgr() ziface.IConnManager {
 	return s.ConnMgr
 }
 
+
+//Register Hook
 func (s *Server) SetOnConnStart(hookFunc func(ziface.IConnection)) {
 	s.OnConnStart = hookFunc
 }
-
 func (s *Server) SetOnConnStop(hookFunc func(ziface.IConnection)) {
 	s.OnConnStop = hookFunc
 }
@@ -143,7 +144,7 @@ func (s *Server) Packet() ziface.Packet{
 	Initialize Server Module Methods / Handler
 */
 //func NewServer(opts ...Option) ziface.IServer {
-func NewServer() ziface.IServer {
+func  NewServer() ziface.IServer {
 	utils.GlobalObject.Reload()
 
 	s := &Server{
@@ -160,3 +161,10 @@ func NewServer() ziface.IServer {
 	//}
 		return s
 }
+/*
+注册OnConnStart狗子函数方法
+
+
+注册OnConn
+
+ */

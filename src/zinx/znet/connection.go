@@ -187,7 +187,8 @@ func (c *Connection) Start() {
 	// start READ data tasks from current conn
 	go c.StartReader()
 	go c.StartWriter()
-	c.TCPServer.CallOnConnStart(c)
+	c.TCPServer.CallOnConnStart(c) // create conn and handle task, execute Hook function
+
 
 }
 

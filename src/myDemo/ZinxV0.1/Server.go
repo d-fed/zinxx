@@ -12,7 +12,7 @@ import "awesomeProject/src/zinx/znet"
 
 func main() {
 	//1. create server handler, use Zinx Api
-	s := znet.NewServer("dsdafasd")
+	s := znet.NewServer("[Zinx V0.5]")
 
 	//2. initalize server
 	s.Serve()
