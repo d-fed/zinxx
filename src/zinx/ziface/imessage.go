@@ -7,7 +7,7 @@ type IMessage interface {
 	// obtain message ID
 	GetMsgId() uint32
 	// obtain message length
-	GetMsgLen() uint32
+	GetDataLen() uint32
 	// obtain message content
 	GetData() []byte
 

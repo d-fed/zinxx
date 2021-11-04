@@ -36,7 +36,7 @@ func main() {
 		}
 
 
-		// err 的作用域位于if 中，不在上一个TLV的binaryMsg中
+		// the scope of err exists in if, not in the binaryMsg of the TLV binary
 		if _, err := conn.Write(binaryMsg); err != nil{
 			fmt.Println("write error:", err)
 			return
@@ -56,17 +56,17 @@ func main() {
 
 
 		// 2. binaryHead   --> msgHead
- 		//  再根据DataLen 进行第二次读取，将data读出来
+		 // base on DataLen, read data again
 		msgHead, err := dp.Unpack(binaryHead)
 		if err != nil{
 			fmt.Println("client unpack msgHead error", err)
 			break
 		}
 
-		if msgHead.GetMsgLen() > 0{ // msg contains data indeed
+		if msgHead.GetDataLen() > 0{ // msg contains data indeed
 			//2. read from DataLen
 			msg := msgHead.(*znet.Message) // type_conversion msgHead --> msg
-			msg.Data = make([]byte, msg.GetMsgLen())
+			msg.Data = make([]byte, msg.GetDataLen())
 
 			if _, err := io.ReadFull(conn, msg.Data); err != nil{
 				fmt.Println("read msg data error, ", err)

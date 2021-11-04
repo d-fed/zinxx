@@ -1,294 +1,248 @@
 package znet
 
-// 1. StartReader()
-// 2. request
-// 3. Execute 3 Router Handles
 import (
-	"awesomeProject/src/zinx/utils"
-	"awesomeProject/src/zinx/ziface"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
+	"awesomeProject/src/zinx/ziface"
+	"awesomeProject/src/zinx/utils"
 )
 
 type Connection struct {
-	TCPServer ziface.IServer
-	Conn *net.TCPConn		// current conn socket TCP
-	ConnID uint32 // Conn ID
-	isClosed bool //	Current Conn Status
-	//handleAPI ziface.HandleFunc
-	ExitChan chan bool  		// info current conn has exit or paused channel
-	//RW between Goroutine
-	msgChan  chan []byte // non-buffer Task channel
-	msgBuffChan  chan []byte // Buffer Task channel
+	TCPServer ziface.IServer	// which server does this connection belong to
+	Conn *net.TCPConn	// connected socket TCP socket
+	ConnID uint32 // global unique ConnID/SessionID
+	MsgHandler ziface.IMsgHandle	// Message management MsgID and message management module corresponding to processing method
+	ctx    context.Context
+	cancel context.CancelFunc
+	msgChan chan []byte
+	msgBuffChan chan []byte
 
-	// 消息的管理MsgID 和 对应的处理业务API关系
-	MsgHandler ziface.IMsgHandle
-
-	//conn property collection
-	property map[string]interface{}
-
-
-	//READWRITE protect conn
-	propertyLock sync.RWMutex
+	sync.RWMutex
+	property map[string]interface{} // conn property
+	propertyLock sync.Mutex // lock to protect current property
+	isClosed bool
 }
 
 func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
+	//Initiialize Connection
 	c := &Connection{
-		TCPServer:  server,
-		Conn:       conn,
-		ConnID:     connID,
-		MsgHandler: msgHandler,
-		isClosed:   false,
-		msgChan:    make(chan []byte),
-		ExitChan:   make(chan bool, 1),
-		property: nil,
-		//msgBuffChan:make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
+		TCPServer:   server,
+		Conn:        conn,
+		ConnID:      connID,
+		isClosed:    false,
+		MsgHandler:  msgHandler,
+		msgChan:     make(chan []byte),
+		msgBuffChan: make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
+		property:    nil,
 	}
 
-	// add Conn into  ConnMgr
-	c.TCPServer.GetConnMgr().Add(c)
-	// NewConnection
+	c.TCPServer.GetConnMgr().Add(c) // add Conn to ConnMgr
 	return c
 }
 
-// conn Reader 	// 1. Read Client Data 2. Call HandleAPI
-func (c *Connection) StartReader() {
-	fmt.Println("Reader Goroutine is running...")
-	defer fmt.Println("connID = ", c.ConnID, " [Reader is exit!], remote addr is ", c.RemoteAddr().String())
-	// if any break triggered
-	defer c.Stop() // 资源回收
-
-	// 1. Read Client Data 2. Call HandleAPI
-	for {
-
-		// read Client data into buf, max 512 byte
-		//buf := make([]byte, utils.GlobalObject.MaxPacketSize) // buf is from client-side
-		////cnt, err := c.Conn.Read(buf)
-		//_, err := c.Conn.Read(buf)
-		//if err != nil {
-		//	fmt.Println("recv buf err", err)
-		//	continue
-		//}
-
-		// Use Router to replace HandleAPI
-		// 调用当前链接锁绑定的HandleAPI
-		//(客户端Conn, buf, cnt) buf and buf_length
-		//if err := c.handleAPI(c.Conn, buf, cnt); err != nil{
-		//	fmt.Println("ConnID ", c.ConnID, " handle is error", err)
-		//	//break
-		//	continue
-		//}
-
-		/*
-			1. Create a unpack Object
-		*/
-		dp := NewDataPack()
-
-		// 2. Read Msg HeadData from client 8 bytes
-		headData := make([]byte, dp.GetHeadLen())
-		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
-			fmt.Println("read msg head error", err)
-			break
-		}
-
-		// 对于这8个字节的headData进行解包
-		// Unpack to obtain msgID and msgDataLen --> load into --> msg
-		msg, err := dp.Unpack(headData) // msg contains msgID and dataLen
-		if err != nil {
-			fmt.Println("unpack error", err)
-			break
-		}
-
-		// Read Data based on data --->load into---> msgDatalen
-		var data []byte
-		if msg.GetMsgLen() > 0 {
-			data = make([]byte, msg.GetMsgLen())
-			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
-				fmt.Println("read msg data error ", err)
-				break
-			}
-		}
-		msg.SetData(data)
-		// and put inside msg.Data
-		req := Request{
-			conn: c,
-			msg:  msg,
-		}
-
-		if utils.GlobalObject.WorkerPoolSize > 0 {
-			// The work pool mechanism has been activated, and the message is handed over to the Worker for processing
-			c.MsgHandler.SendMsgToTaskQueue(&req)
-		} else {
-			go c.MsgHandler.DoMsgHandler(&req) // Execute the corresponding Handle method in the bound message and the corresponding processing method
-		}
-
-		////// Registe Router
-		////// router which implement register
-		//// ✅ Correct Way ✅
-		//go func(request ziface.IRequest) {
-		//	c.Router.PreHandle(request)
-		//	c.Router.Handle(request)
-		//	c.Router.PostHandle(request)
-		//}(&req)
-		////
-
-		// 得到当前conn数据的Request请求数据
-		// because buf has been put into Request
-		// Request data from current conn
-		//req := Request{
-		//	conn: c,
-		//	data: msg,
-		//}
-
-		// find router corresponding to binding Conn
-		//c.Router.PreHandle(req) // Wrong!!!, you need to pass address instead of request
-
-		// remove CallBackToClient method
-
-		// obtain the correspoding router of the Conn
-	}
-
-}
-
-/*
- 	write message Goroutine, Users send Message
-	dedicated to send message to client
-
-*/
-
-/*
-	dedicated module which send message to client-side
-	write Message function
-*/
-
+//StartWriter  Write Data into Client
 func (c *Connection) StartWriter() {
-	fmt.Print("[Writer Goroutine is running...]")
-	defer fmt.Println(c.RemoteAddr().String(), " [conn Writer exit!]")
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), "[conn Writer exit!]")
 
-	// 不断阻塞的等待Channel的消息，进行写给客户端
 	for {
 		select {
 		case data := <-c.msgChan:
-			// 有数据要写给客户端
+			//有数据要写给客户端
 			if _, err := c.Conn.Write(data); err != nil {
-				fmt.Println("Send data error, ", err)
+				fmt.Println("Send Data error:, ", err, " Conn Writer exit")
 				return
 			}
-
-		case <-c.ExitChan: //可读
-			// 代表Reader已经退出，此时Writer也已经退出
-
+			//fmt.Printf("Send data succ! data = %+v\n", data)
+		case data, ok := <-c.msgBuffChan:
+			if ok {
+				//有数据要写给客户端
+				if _, err := c.Conn.Write(data); err != nil {
+					fmt.Println("Send Buff Data error:, ", err, " Conn Writer exit")
+					return
+				}
+			} else {
+				fmt.Println("msgBuffChan is Closed")
+				break
+			}
+		case <-c.ctx.Done():
 			return
 		}
 	}
-
-	// 告知当前链接已退出，Writer退出
-
 }
 
-// start conn, let current conn ready to work
+//StartReader 读消息Goroutine，用于从客户端中读取数据
+func (c *Connection) StartReader() {
+	fmt.Println("[Reader Goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), "[conn Reader exit!]")
+	defer c.Stop()
+
+	// 创建拆包解包的对象
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		default:
+
+			//读取客户端的Msg head
+			headData := make([]byte, c.TCPServer.Packet().GetHeadLen())
+			if _, err := io.ReadFull(c.Conn, headData); err != nil {
+				fmt.Println("read msg head error ", err)
+				return
+			}
+			//fmt.Printf("read headData %+v\n", headData)
+
+			//拆包，得到msgID 和 datalen 放在msg中
+			msg, err := c.TCPServer.Packet().Unpack(headData)
+			if err != nil {
+				fmt.Println("unpack error ", err)
+				return
+			}
+
+			//根据 dataLen 读取 data，放在msg.Data中
+			var data []byte
+			if msg.GetDataLen() > 0 {
+				data = make([]byte, msg.GetDataLen())
+				if _, err := io.ReadFull(c.Conn, data); err != nil {
+					fmt.Println("read msg data error ", err)
+					return
+				}
+			}
+			msg.SetData(data)
+
+			//得到当前客户端请求的Request数据
+			req := Request{
+				conn: c,
+				msg:  msg,
+			}
+
+			if utils.GlobalObject.WorkerPoolSize > 0 {
+				//已经启动工作池机制，将消息交给Worker处理
+				c.MsgHandler.SendMsgToTaskQueue(&req)
+			} else {
+				//从绑定好的消息和对应的处理方法中执行对应的Handle方法
+				go c.MsgHandler.DoMsgHandler(&req)
+			}
+		}
+	}
+}
+
+//Start 启动连接，让当前连接开始工作
 func (c *Connection) Start() {
-	fmt.Print("Conn Start() ... ConnID = ", c.ConnID)
-	// start READ data tasks from current conn
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+	//1 开启用户从客户端读取数据流程的Goroutine
 	go c.StartReader()
+	//2 开启用于写回客户端数据流程的Goroutine
 	go c.StartWriter()
-	c.TCPServer.CallOnConnStart(c) // create conn and handle task, execute Hook function
-
-
+	//按照用户传递进来的创建连接时需要处理的业务，执行钩子方法
+	c.TCPServer.CallOnConnStart(c)
 }
 
+//Stop 停止连接，结束当前连接状态M
 func (c *Connection) Stop() {
-	fmt.Println("Conn Stop() .. ConnID = ", c.ConnID)
+
+	//如果用户注册了该链接的关闭回调业务，那么在此刻应该显示调用
+	c.TCPServer.CallOnConnStop(c)
+
+	c.Lock()
+	defer c.Unlock()
 	if c.isClosed == true {
 		return
 	}
-	c.isClosed = true
-	c.Conn.Close()                     // close socket
-	c.ExitChan <- true                 //close Writer Goroutine
-	c.TCPServer.GetConnMgr().Remove(c) // remove from current ConnMgr
-	//Exit channel and recycle resources
-	close(c.ExitChan)
-	close(c.msgChan)
+	fmt.Println("Conn Stop()...ConnID = ", c.ConnID) // current Conn is closed
+	c.Conn.Close() // Close Socket
+	c.cancel()	// Close Writer
+	c.TCPServer.GetConnMgr().Remove(c) 	// remove from ConnMgr()
+	close(c.msgBuffChan)	// Close All Channel for this Conn
+	c.isClosed = true 	// set the mark
 
 }
 
-// current binding socket conn
+//GetTCPConnection: obtain the original socket
 func (c *Connection) GetTCPConnection() *net.TCPConn {
 	return c.Conn
 }
-
-// current Conn ID of current module
 func (c *Connection) GetConnID() uint32 {
 	return c.ConnID
 }
-
-// TCP status IP port of remote conn module
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
-
-// pack the data(going to send to client-side)
-// provide a function called SendMsg function to send data to client-side and
-//pack and send
-func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+func (c *Connection) SendMsg(msgID uint32, data []byte) error { // send to remote TCP
+	c.RLock()
+	defer c.RUnlock()
 	if c.isClosed == true {
-		return errors.New("Connection closed when send msg")
+		return errors.New("connection closed when send msg")
 	}
-	// pack data and MsgDataLen|MsgID|Data
-	dp := NewDataPack()
-
-	/*
-		binaryMsg: serialized message
-			MsgDataLen|MsgID|Data
-	*/
-	binaryMsg, err := dp.Pack(NewMsgPackage(msgId, data))
+	dp := c.TCPServer.Packet()		// wrap data and send
+	msg, err := dp.Pack(NewMsgPackage(msgID, data))
 	if err != nil {
-		fmt.Println("Pack error msg id = ", msgId)
-		return errors.New("Pack error msg")
+		fmt.Println("Pack error msg ID = ", msgID)
+		return errors.New("Pack error msg ")
 	}
-
-	// 将数据发给客户端
-	c.msgChan <- binaryMsg
-	// Writer得到msgChan，然后发布出去
-	if _, err := c.Conn.Write(binaryMsg); err != nil {
-		fmt.Println("Write msg id ", msgId, " error :", err)
-		return errors.New("conn Write error")
-	}
+	c.msgChan <- msg	// write back to client-side
 	return nil
 }
 
-
-func (c *Connection) SetProperty(key string, value interface{}){
+func (c *Connection) SendBuffMsg(msgID uint32, data []byte) error {
+	c.RLock()
+	defer c.RUnlock()
+	if c.isClosed == true {
+		return errors.New("Connection closed when send buff msg")
+	}
+	dp := c.TCPServer.Packet() 	// packet data and send
+	msg, err := dp.Pack(NewMsgPackage(msgID, data))
+	if err != nil {
+		fmt.Println("Pack error msg ID = ", msgID)
+		return errors.New("Pack error msg ")
+	}
+	c.msgBuffChan <- msg	// re-write to client-side
+	return nil
+}
+func (c *Connection) SetProperty(key string, value interface{}) {
 	c.propertyLock.Lock()
 	defer c.propertyLock.Unlock()
-
-	// add a conn
+	if c.property == nil {
+		c.property = make(map[string]interface{})
+	}
 	c.property[key] = value
 }
 
-
-func (c *Connection) GetProperty(key string)(interface{}, error){
-	c.propertyLock.RLock()
-	defer c.propertyLock.RLock()
-
-	// read property
-	if value, ok := c.property[key]; ok{
-		return value,nil
-	}else{
-		return nil, errors.New("no property found")
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+	if value, ok := c.property[key]; ok {
+		return value, nil
 	}
+	return nil, errors.New("no property found")
 }
 
-
-
-func (c *Connection) RemoveProperty(key string)(){
+func (c *Connection) RemoveProperty(key string) {
 	c.propertyLock.Lock()
 	defer c.propertyLock.Unlock()
 
-	// delete property
 	delete(c.property, key)
-
 }
+
+// return ctx, and for user to customized go func to obtain
+func (c *Connection) Context() context.Context {
+	return c.ctx
+}
+
+
+
+/*
+Each incoming request is handled in its own goroutine.
+Request handlers often start additional goroutines to access backends such as databases and RPC services.
+The set of goroutines working on a request typically needs access to request-specific values
+-> identity
+-> authorizaiton token
+-> request's deadline
+
+When a request is canceled or times out, all the goroutines working on
+that request should exit quickly so the system can reclaim any resources they are using.
+ */

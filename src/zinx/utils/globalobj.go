@@ -27,9 +27,9 @@ type GlobalObj struct {
 	Version        string 
 	MaxConn        int    // Max allowed server connection
 	MaxPacketSize uint32 // Max value of Zinx data packet
-	WorkerPoolSize uint32	// current worker pool number of tasks
-	// 当前业务工作Worker Pool的 Goroutine 的数量
+	WorkerPoolSize uint32	// current worker pool number of tasks/Gouroutines
 	MaxWorkerTaskLen uint32	// The max task storage  of the corresponding task responsibilities of the staff
+	MaxMsgChanLen uint32 // SendBuffMsg send message buffer max length
 	// MaxWorkerTaskLen，允许用户最多开辟多少个Worker（限定条件下）
 	//MaxMsgChanLen
 	/*

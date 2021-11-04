@@ -33,7 +33,7 @@ func (m *Message) GetMsgId() uint32 {
 }
 
 // obtain message length
-func (m *Message) GetMsgLen() uint32 {
+func (m *Message) GetDataLen() uint32 {
 	return m.DataLen
 }
 

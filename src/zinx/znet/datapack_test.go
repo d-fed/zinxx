@@ -44,7 +44,7 @@ func TestDataPack(t *testing.T) {
 			}
 			// handle client request
 			// dp.GetHeadLen()-> headData 读头
-			// dp.GetMsgLen() -> msgHead  判断头的长度大于0
+			// dp.GetDataLen() -> msgHead  判断头的长度大于0
 			// 1. read from conn read head from pack
 			// 2. read from conn, read data from head datalen 【read from client, and unpack】
 			go func(conn net.Conn) {
@@ -73,11 +73,11 @@ func TestDataPack(t *testing.T) {
 
 
 					// msg有数据的，第二次读取
-					if msgHead.GetMsgLen() > 0 {
+					if msgHead.GetDataLen() > 0 {
 
 						// 2.  based on datalen to read data from conn
 						msg := msgHead.(*Message)
-						msg.Data = make([]byte, msg.GetMsgLen()) // 切片
+						msg.Data = make([]byte, msg.GetDataLen()) // 切片
 						// read from
 						// Data	 	[]byte
 

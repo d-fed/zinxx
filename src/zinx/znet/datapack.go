@@ -33,7 +33,7 @@ func (dp *DataPack) Pack(msg ziface.IMessage) ([]byte, error) {
 	// !!!! Sequence Matters
 
 	// Write dataLen into dataBuff
-	if err := binary.Write(dataBuff, binary.LittleEndian, msg.GetMsgLen()); err != nil {
+	if err := binary.Write(dataBuff, binary.LittleEndian, msg.GetDataLen()); err != nil {
 		return nil, err
 	}
 

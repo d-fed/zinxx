@@ -19,8 +19,8 @@ type IConnection interface {
 	// obtain Client TCP IP + Port
 	RemoteAddr() net.Addr
 
-	// send data to remote server
 	SendMsg(msgID uint32, data []byte) error 		//send Msg to remote TCP client 【non-buffer】
+	SendBuffMsg(msgID uint32, data []byte) error	//send Msg to remote TCP client 【buffer】
 
 	// set, obtain, remove conn property
 	SetProperty(key string, value interface{})		// set conn property
