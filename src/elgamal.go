@@ -21,7 +21,8 @@ import (
 "crypto/rand"
 "crypto/subtle"
 "errors"
-"io"
+	"fmt"
+	"io"
 "math/big"
 )
 
@@ -40,11 +41,14 @@ type PrivateKey struct {
 // pair of integers. Errors can result from reading random, or because msg is
 // too large to be encrypted to the public key.
 func Encrypt(random io.Reader, pub *PublicKey, msg []byte) (c1, c2 *big.Int, err error) {
+	fmt.Println("Public Key: ", pub)
 	pLen := (pub.P.BitLen() + 7) / 8
 	if len(msg) > pLen-11 {
 		err = errors.New("elgamal: message too long")
 		return
 	}
+
+	fmt.Println("Message: ", msg)
 
 	// EM = 0x02 || PS || 0x00 || M
 	em := make([]byte, pLen-1)
@@ -69,6 +73,8 @@ func Encrypt(random io.Reader, pub *PublicKey, msg []byte) (c1, c2 *big.Int, err
 	c2 = s.Mul(s, m)
 	c2.Mod(c2, pub.P)
 
+	fmt.Println("c1: ", c1)
+	fmt.Println("c2: ", c2)
 	return
 }
 
@@ -80,6 +86,8 @@ func Encrypt(random io.Reader, pub *PublicKey, msg []byte) (c1, c2 *big.Int, err
 // Against Protocols Based on the RSA Encryption Standard PKCS #1'', Daniel
 // Bleichenbacher, Advances in Cryptology (Crypto '98),
 func Decrypt(priv *PrivateKey, c1, c2 *big.Int) (msg []byte, err error) {
+	fmt.Println("c1: ", c1)
+	fmt.Println("c2: ", c2)
 	s := new(big.Int).Exp(c1, priv.X, priv.P)
 	if s.ModInverse(s, priv.P) == nil {
 		return nil, errors.New("elgamal: invalid private key")
